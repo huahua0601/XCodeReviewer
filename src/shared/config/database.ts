@@ -38,10 +38,15 @@ export const supabase = hasSupabaseConfig ? createClient(finalSupabaseUrl, final
   }
 }) : null;
 
-// 数据库模式：local（本地IndexedDB）、supabase（云端）、demo（演示模式）
-export const dbMode = useLocalDB ? 'local' : (hasSupabaseConfig ? 'supabase' : 'demo');
-export const isDemoMode = dbMode === 'demo';
-export const isLocalMode = dbMode === 'local';
+/**
+ * 数据库模式
+ * 
+ * 注意：本地 IndexedDB 和 Supabase 模式已废弃
+ * 现在始终使用后端 API ('backend' 模式)
+ */
+export const dbMode = 'backend';
+export const isDemoMode = false;
+export const isLocalMode = false;
 
 // 演示数据
 const demoProfile: Profile = {
