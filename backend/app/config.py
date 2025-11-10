@@ -51,12 +51,25 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
     
-    # MinIO/S3
+    # Object Storage Configuration
+    STORAGE_TYPE: str = "local"  # Options: "minio", "s3", "local"
+    
+    # MinIO Configuration
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
     MINIO_BUCKET: str = "xcodereviewer"
     MINIO_SECURE: bool = False
+    
+    # AWS S3 Configuration
+    S3_BUCKET: str = "xcodereviewer"
+    S3_REGION: str = "us-east-1"
+    S3_ACCESS_KEY: Optional[str] = None
+    S3_SECRET_KEY: Optional[str] = None
+    S3_ENDPOINT_URL: Optional[str] = None  # For S3-compatible services
+    
+    # Local Storage Configuration
+    LOCAL_STORAGE_PATH: str = "./storage"
     
     # JWT
     SECRET_KEY: str = "your-secret-key-change-in-production"

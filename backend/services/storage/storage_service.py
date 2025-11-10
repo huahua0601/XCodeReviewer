@@ -1,10 +1,18 @@
 """Storage Service
-Service for storing and retrieving files from MinIO/S3.
+Service for storing and retrieving files from MinIO/S3/Local filesystem.
+
+Supports three storage types:
+- MinIO: Self-hosted S3-compatible object storage
+- AWS S3: Amazon Web Services S3
+- Local: Local filesystem storage
+
+Configuration via environment variables or app config.
 """
-from typing import Optional, BinaryIO
+from typing import Optional
 from datetime import timedelta
 import os
 from loguru import logger
+from enum import Enum
 
 try:
     from minio import Minio
@@ -14,41 +22,135 @@ except ImportError:
     MINIO_AVAILABLE = False
     logger.warning("MinIO client not available. Install with: pip install minio")
 
+try:
+    import boto3
+    from botocore.exceptions import ClientError
+    BOTO3_AVAILABLE = True
+except ImportError:
+    BOTO3_AVAILABLE = False
+    logger.warning("boto3 not available. Install with: pip install boto3")
+
+
+class StorageType(str, Enum):
+    """Storage type enumeration"""
+    MINIO = "minio"
+    S3 = "s3"
+    LOCAL = "local"
+
 
 class StorageService:
     """Service for file storage operations"""
     
     def __init__(self):
-        """Initialize storage service"""
-        self.enabled = MINIO_AVAILABLE and self._check_config()
+        """Initialize storage service based on configuration"""
+        from app.config import settings
         
-        if self.enabled:
+        self.storage_type = StorageType(settings.STORAGE_TYPE.lower())
+        logger.info(f"Initializing storage service with type: {self.storage_type}")
+        
+        if self.storage_type == StorageType.MINIO:
+            self._init_minio(settings)
+        elif self.storage_type == StorageType.S3:
+            self._init_s3(settings)
+        else:  # LOCAL
+            self._init_local(settings)
+    
+    def _init_minio(self, settings):
+        """Initialize MinIO storage"""
+        if not MINIO_AVAILABLE:
+            logger.error("MinIO client not available but STORAGE_TYPE is 'minio'")
+            raise ImportError("MinIO client required. Install with: pip install minio")
+        
+        try:
             self.client = Minio(
-                endpoint=os.getenv('MINIO_ENDPOINT', 'localhost:9000'),
-                access_key=os.getenv('MINIO_ACCESS_KEY', 'minioadmin'),
-                secret_key=os.getenv('MINIO_SECRET_KEY', 'minioadmin'),
-                secure=os.getenv('MINIO_SECURE', 'false').lower() == 'true'
+                endpoint=settings.MINIO_ENDPOINT,
+                access_key=settings.MINIO_ACCESS_KEY,
+                secret_key=settings.MINIO_SECRET_KEY,
+                secure=settings.MINIO_SECURE
             )
-            self.bucket_name = os.getenv('MINIO_BUCKET', 'xcodereviewer')
-            self._ensure_bucket_exists()
+            self.bucket_name = settings.MINIO_BUCKET
+            self._ensure_minio_bucket_exists()
+            logger.info(f"MinIO storage initialized: {settings.MINIO_ENDPOINT}/{self.bucket_name}")
+        except Exception as e:
+            logger.error(f"Failed to initialize MinIO: {e}")
+            raise
+    
+    def _init_s3(self, settings):
+        """Initialize AWS S3 storage"""
+        if not BOTO3_AVAILABLE:
+            logger.warning("boto3 not available, trying MinIO client for S3...")
+            # Fallback to MinIO client (S3 compatible)
+            if not MINIO_AVAILABLE:
+                logger.error("Neither boto3 nor MinIO client available for S3 storage")
+                raise ImportError("boto3 or MinIO client required. Install with: pip install boto3")
+            
+            # Use MinIO client for S3 (S3 compatible)
+            endpoint = settings.S3_ENDPOINT_URL or f"s3.{settings.S3_REGION}.amazonaws.com"
+            self.client = Minio(
+                endpoint=endpoint,
+                access_key=settings.S3_ACCESS_KEY,
+                secret_key=settings.S3_SECRET_KEY,
+                secure=True,
+                region=settings.S3_REGION
+            )
+            self.bucket_name = settings.S3_BUCKET
+            self.using_boto3 = False
+            logger.info(f"S3 storage initialized with MinIO client: {endpoint}/{self.bucket_name}")
         else:
-            logger.warning("Storage service disabled - using local filesystem")
-            self.local_storage_path = os.getenv('LOCAL_STORAGE_PATH', './storage')
-            os.makedirs(self.local_storage_path, exist_ok=True)
+            # Use boto3 for better S3 integration
+            session_config = {
+                'aws_access_key_id': settings.S3_ACCESS_KEY,
+                'aws_secret_access_key': settings.S3_SECRET_KEY,
+                'region_name': settings.S3_REGION
+            }
+            
+            if settings.S3_ENDPOINT_URL:
+                session_config['endpoint_url'] = settings.S3_ENDPOINT_URL
+            
+            self.s3_client = boto3.client('s3', **session_config)
+            self.bucket_name = settings.S3_BUCKET
+            self.using_boto3 = True
+            self._ensure_s3_bucket_exists()
+            logger.info(f"S3 storage initialized with boto3: {settings.S3_REGION}/{self.bucket_name}")
     
-    def _check_config(self) -> bool:
-        """Check if MinIO configuration is available"""
-        required_vars = ['MINIO_ENDPOINT', 'MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY']
-        return all(os.getenv(var) for var in required_vars)
+    def _init_local(self, settings):
+        """Initialize local filesystem storage"""
+        self.local_storage_path = settings.LOCAL_STORAGE_PATH
+        os.makedirs(self.local_storage_path, exist_ok=True)
+        logger.info(f"Local storage initialized: {self.local_storage_path}")
     
-    def _ensure_bucket_exists(self):
-        """Ensure the bucket exists"""
+    def _ensure_minio_bucket_exists(self):
+        """Ensure MinIO bucket exists"""
         try:
             if not self.client.bucket_exists(self.bucket_name):
                 self.client.make_bucket(self.bucket_name)
-                logger.info(f"Created bucket: {self.bucket_name}")
+                logger.info(f"Created MinIO bucket: {self.bucket_name}")
         except S3Error as e:
-            logger.error(f"Error ensuring bucket exists: {e}")
+            logger.error(f"Error ensuring MinIO bucket exists: {e}")
+            raise
+    
+    def _ensure_s3_bucket_exists(self):
+        """Ensure S3 bucket exists"""
+        if not self.using_boto3:
+            return
+        
+        try:
+            self.s3_client.head_bucket(Bucket=self.bucket_name)
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            if error_code == '404':
+                try:
+                    self.s3_client.create_bucket(
+                        Bucket=self.bucket_name,
+                        CreateBucketConfiguration={'LocationConstraint': self.s3_client.meta.region_name}
+                    )
+                    logger.info(f"Created S3 bucket: {self.bucket_name}")
+                except ClientError as create_error:
+                    logger.error(f"Error creating S3 bucket: {create_error}")
+                    raise
+            else:
+                logger.error(f"Error checking S3 bucket: {e}")
+                raise
     
     def upload_file(
         self,
@@ -67,9 +169,11 @@ class StorageService:
         Returns:
             Storage path/URL of uploaded file
         """
-        if self.enabled:
+        if self.storage_type == StorageType.MINIO:
             return self._upload_to_minio(file_path, file_data, content_type)
-        else:
+        elif self.storage_type == StorageType.S3:
+            return self._upload_to_s3(file_path, file_data, content_type)
+        else:  # LOCAL
             return self._upload_to_local(file_path, file_data)
     
     def _upload_to_minio(
@@ -99,6 +203,34 @@ class StorageService:
             logger.error(f"Error uploading to MinIO: {e}")
             raise
     
+    def _upload_to_s3(
+        self,
+        file_path: str,
+        file_data: bytes,
+        content_type: str
+    ) -> str:
+        """Upload file to AWS S3"""
+        if self.using_boto3:
+            try:
+                from io import BytesIO
+                
+                self.s3_client.upload_fileobj(
+                    BytesIO(file_data),
+                    self.bucket_name,
+                    file_path,
+                    ExtraArgs={'ContentType': content_type}
+                )
+                
+                logger.info(f"Uploaded file to S3: {file_path}")
+                return f"s3://{self.bucket_name}/{file_path}"
+                
+            except ClientError as e:
+                logger.error(f"Error uploading to S3: {e}")
+                raise
+        else:
+            # Use MinIO client for S3
+            return self._upload_to_minio(file_path, file_data, content_type)
+    
     def _upload_to_local(self, file_path: str, file_data: bytes) -> str:
         """Upload file to local filesystem"""
         full_path = os.path.join(self.local_storage_path, file_path)
@@ -122,9 +254,11 @@ class StorageService:
         Returns:
             File content as bytes
         """
-        if self.enabled:
+        if self.storage_type == StorageType.MINIO:
             return self._download_from_minio(file_path)
-        else:
+        elif self.storage_type == StorageType.S3:
+            return self._download_from_s3(file_path)
+        else:  # LOCAL
             return self._download_from_local(file_path)
     
     def _download_from_minio(self, file_path: str) -> bytes:
@@ -144,6 +278,28 @@ class StorageService:
         except S3Error as e:
             logger.error(f"Error downloading from MinIO: {e}")
             raise
+    
+    def _download_from_s3(self, file_path: str) -> bytes:
+        """Download file from AWS S3"""
+        if self.using_boto3:
+            try:
+                from io import BytesIO
+                
+                buffer = BytesIO()
+                self.s3_client.download_fileobj(
+                    self.bucket_name,
+                    file_path,
+                    buffer
+                )
+                
+                return buffer.getvalue()
+                
+            except ClientError as e:
+                logger.error(f"Error downloading from S3: {e}")
+                raise
+        else:
+            # Use MinIO client for S3
+            return self._download_from_minio(file_path)
     
     def _download_from_local(self, file_path: str) -> bytes:
         """Download file from local filesystem"""
@@ -166,9 +322,11 @@ class StorageService:
         Returns:
             True if deleted successfully
         """
-        if self.enabled:
+        if self.storage_type == StorageType.MINIO:
             return self._delete_from_minio(file_path)
-        else:
+        elif self.storage_type == StorageType.S3:
+            return self._delete_from_s3(file_path)
+        else:  # LOCAL
             return self._delete_from_local(file_path)
     
     def _delete_from_minio(self, file_path: str) -> bool:
@@ -184,6 +342,24 @@ class StorageService:
         except S3Error as e:
             logger.error(f"Error deleting from MinIO: {e}")
             return False
+    
+    def _delete_from_s3(self, file_path: str) -> bool:
+        """Delete file from AWS S3"""
+        if self.using_boto3:
+            try:
+                self.s3_client.delete_object(
+                    Bucket=self.bucket_name,
+                    Key=file_path
+                )
+                logger.info(f"Deleted file from S3: {file_path}")
+                return True
+                
+            except ClientError as e:
+                logger.error(f"Error deleting from S3: {e}")
+                return False
+        else:
+            # Use MinIO client for S3
+            return self._delete_from_minio(file_path)
     
     def _delete_from_local(self, file_path: str) -> bool:
         """Delete file from local filesystem"""
@@ -219,10 +395,20 @@ class StorageService:
         Returns:
             Presigned URL or None if not available
         """
-        if not self.enabled:
+        if self.storage_type == StorageType.MINIO:
+            return self._get_presigned_url_minio(file_path, expires)
+        elif self.storage_type == StorageType.S3:
+            return self._get_presigned_url_s3(file_path, expires)
+        else:  # LOCAL
             # For local storage, return the file path
             return file_path
-        
+    
+    def _get_presigned_url_minio(
+        self,
+        file_path: str,
+        expires: timedelta
+    ) -> Optional[str]:
+        """Get presigned URL from MinIO"""
         try:
             url = self.client.presigned_get_object(
                 bucket_name=self.bucket_name,
@@ -232,8 +418,33 @@ class StorageService:
             return url
             
         except S3Error as e:
-            logger.error(f"Error generating presigned URL: {e}")
+            logger.error(f"Error generating presigned URL from MinIO: {e}")
             return None
+    
+    def _get_presigned_url_s3(
+        self,
+        file_path: str,
+        expires: timedelta
+    ) -> Optional[str]:
+        """Get presigned URL from S3"""
+        if self.using_boto3:
+            try:
+                url = self.s3_client.generate_presigned_url(
+                    'get_object',
+                    Params={
+                        'Bucket': self.bucket_name,
+                        'Key': file_path
+                    },
+                    ExpiresIn=int(expires.total_seconds())
+                )
+                return url
+                
+            except ClientError as e:
+                logger.error(f"Error generating presigned URL from S3: {e}")
+                return None
+        else:
+            # Use MinIO client for S3
+            return self._get_presigned_url_minio(file_path, expires)
     
     def file_exists(self, file_path: str) -> bool:
         """
@@ -245,9 +456,11 @@ class StorageService:
         Returns:
             True if file exists
         """
-        if self.enabled:
+        if self.storage_type == StorageType.MINIO:
             return self._file_exists_in_minio(file_path)
-        else:
+        elif self.storage_type == StorageType.S3:
+            return self._file_exists_in_s3(file_path)
+        else:  # LOCAL
             return self._file_exists_locally(file_path)
     
     def _file_exists_in_minio(self, file_path: str) -> bool:
@@ -260,6 +473,21 @@ class StorageService:
             return True
         except S3Error:
             return False
+    
+    def _file_exists_in_s3(self, file_path: str) -> bool:
+        """Check if file exists in S3"""
+        if self.using_boto3:
+            try:
+                self.s3_client.head_object(
+                    Bucket=self.bucket_name,
+                    Key=file_path
+                )
+                return True
+            except ClientError:
+                return False
+        else:
+            # Use MinIO client for S3
+            return self._file_exists_in_minio(file_path)
     
     def _file_exists_locally(self, file_path: str) -> bool:
         """Check if file exists locally"""
@@ -280,9 +508,11 @@ class StorageService:
         Returns:
             File size in bytes or None if not found
         """
-        if self.enabled:
+        if self.storage_type == StorageType.MINIO:
             return self._get_file_size_from_minio(file_path)
-        else:
+        elif self.storage_type == StorageType.S3:
+            return self._get_file_size_from_s3(file_path)
+        else:  # LOCAL
             return self._get_file_size_locally(file_path)
     
     def _get_file_size_from_minio(self, file_path: str) -> Optional[int]:
@@ -295,6 +525,21 @@ class StorageService:
             return stat.size
         except S3Error:
             return None
+    
+    def _get_file_size_from_s3(self, file_path: str) -> Optional[int]:
+        """Get file size from S3"""
+        if self.using_boto3:
+            try:
+                response = self.s3_client.head_object(
+                    Bucket=self.bucket_name,
+                    Key=file_path
+                )
+                return response['ContentLength']
+            except ClientError:
+                return None
+        else:
+            # Use MinIO client for S3
+            return self._get_file_size_from_minio(file_path)
     
     def _get_file_size_locally(self, file_path: str) -> Optional[int]:
         """Get file size locally"""
