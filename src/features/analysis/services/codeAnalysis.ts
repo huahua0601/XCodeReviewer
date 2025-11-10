@@ -4,7 +4,17 @@ import { getCurrentLLMApiKey, getCurrentLLMModel, env } from '@/shared/config/en
 import type { LLMConfig } from '@/shared/services/llm/types';
 import { SUPPORTED_LANGUAGES } from '@/shared/constants';
 
-// 基于 LLM 的代码分析引擎
+/**
+ * 基于 LLM 的代码分析引擎
+ * 
+ * @deprecated 此类包含前端直接调用 LLM 的逻辑
+ * 
+ * 所有代码分析现在都应该通过后端 API 进行：
+ * - 即时分析：使用 api.analyzeInstantCode()
+ * - 仓库扫描：使用 createRepositoryAuditTask()
+ * 
+ * 此类仅保留用于兼容性，未来版本将删除
+ */
 export class CodeAnalysisEngine {
   static getSupportedLanguages(): string[] {
     return [...SUPPORTED_LANGUAGES];
@@ -12,16 +22,24 @@ export class CodeAnalysisEngine {
 
   /**
    * 创建LLM服务实例
+   * @deprecated 建议使用后端 API 进行分析，LLM 配置由后端统一管理
    */
   private static createLLMService(): LLMService {
     const apiKey = getCurrentLLMApiKey();
+    
+    // 不再强制要求 API Key，因为 LLM 配置现在由后端管理
+    // 如果使用前端直接调用（不推荐），会在实际调用时报错
     if (!apiKey) {
-      throw new Error(`缺少 ${env.LLM_PROVIDER} API Key，请在 .env 中配置`);
+      console.warn(
+        `⚠️ 未配置 ${env.LLM_PROVIDER} API Key\n` +
+        `建议使用后端 API 进行分析（更安全、更可靠）\n` +
+        `如需使用前端直接调用，请配置相应的 API Key`
+      );
     }
 
     const config: LLMConfig = {
       provider: env.LLM_PROVIDER as any,
-      apiKey,
+      apiKey: apiKey || '', // 允许空字符串，在实际调用时会失败
       model: getCurrentLLMModel(),
       baseUrl: env.LLM_BASE_URL,
       timeout: env.LLM_TIMEOUT,
@@ -281,9 +299,8 @@ ${codeWithLineNumbers}`;
         `配置检查：\n` +
         `- 提供商：${provider}\n` +
         `- 模型：${getCurrentLLMModel() || '(使用默认)'}\n` +
-        `- API Key：${getCurrentLLMApiKey() ? '已配置' : '未配置'}\n` +
         `- 超时设置：${env.LLM_TIMEOUT}ms\n\n` +
-        `请检查.env配置文件或尝试切换其他LLM提供商`
+        `提示：建议使用后端 API 进行分析，LLM 配置由后端统一管理`
       );
     }
     const parsed = this.safeParseJson(text);

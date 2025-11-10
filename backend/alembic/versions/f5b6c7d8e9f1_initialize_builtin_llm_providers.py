@@ -1,13 +1,23 @@
-#!/usr/bin/env python3
-"""Initialize built-in LLM providers"""
-import asyncio
-import sys
-sys.path.insert(0, "/home/ubuntu/XCodeReviewer/backend")
+"""initialize_builtin_llm_providers
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from db.session import async_session_maker
-from models.llm_provider import LLMProvider
+Revision ID: f5b6c7d8e9f1
+Revises: f5b6c7d8e9f0
+Create Date: 2025-11-10 10:47:17.641796
+
+"""
+from typing import Sequence, Union
+from datetime import datetime
+
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy import table, column, String, Integer, Boolean, JSON, Text
+
+
+# revision identifiers, used by Alembic.
+revision: str = 'f5b6c7d8e9f1'
+down_revision: Union[str, None] = 'f5b6c7d8e9f0'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
 
 
 BUILTIN_PROVIDERS = [
@@ -206,47 +216,68 @@ BUILTIN_PROVIDERS = [
 ]
 
 
-async def init_providers():
-    """Initialize built-in LLM providers"""
-    async with async_session_maker() as db:
-        try:
-            created = 0
-            updated = 0
-            
-            for provider_data in BUILTIN_PROVIDERS:
-                # Check if provider already exists
-                result = await db.execute(
-                    select(LLMProvider).where(LLMProvider.name == provider_data["name"])
-                )
-                existing = result.scalar_one_or_none()
-                
-                if existing:
-                    # Update existing provider
-                    for key, value in provider_data.items():
-                        if key not in ["is_builtin"]:  # Don't update is_builtin
-                            setattr(existing, key, value)
-                    updated += 1
-                    print(f"✅ Updated provider: {provider_data['name']}")
-                else:
-                    # Create new provider
-                    provider = LLMProvider(**provider_data)
-                    db.add(provider)
-                    created += 1
-                    print(f"✅ Created provider: {provider_data['name']}")
-            
-            await db.commit()
-            
-            print(f"\n✅ Initialization complete:")
-            print(f"   - Created: {created} providers")
-            print(f"   - Updated: {updated} providers")
-            
-        except Exception as e:
-            print(f"❌ Error initializing providers: {e}")
-            await db.rollback()
-            raise
+def upgrade() -> None:
+    """Insert built-in LLM providers"""
+    # Define the llm_providers table structure for bulk insert
+    llm_providers = table(
+        'llm_providers',
+        column('name', String),
+        column('display_name', String),
+        column('description', Text),
+        column('icon', String),
+        column('provider_type', String),
+        column('api_endpoint', String),
+        column('default_model', String),
+        column('supported_models', JSON),
+        column('requires_api_key', Boolean),
+        column('supports_streaming', Boolean),
+        column('max_tokens_limit', Integer),
+        column('category', String),
+        column('is_active', Boolean),
+        column('is_builtin', Boolean),
+        column('config', JSON),
+        column('created_at', sa.DateTime),
+        column('updated_at', sa.DateTime),
+    )
+    
+    now = datetime.utcnow()
+    
+    # Prepare data for insertion
+    providers_data = []
+    for provider in BUILTIN_PROVIDERS:
+        data = {
+            'name': provider['name'],
+            'display_name': provider['display_name'],
+            'description': provider['description'],
+            'icon': provider['icon'],
+            'provider_type': provider['provider_type'],
+            'api_endpoint': provider.get('api_endpoint'),
+            'default_model': provider['default_model'],
+            'supported_models': provider['supported_models'],
+            'requires_api_key': provider['requires_api_key'],
+            'supports_streaming': provider['supports_streaming'],
+            'max_tokens_limit': provider['max_tokens_limit'],
+            'category': provider['category'],
+            'is_active': provider['is_active'],
+            'is_builtin': provider['is_builtin'],
+            'config': provider.get('config'),
+            'created_at': now,
+            'updated_at': now,
+        }
+        providers_data.append(data)
+    
+    # Insert all providers
+    op.bulk_insert(llm_providers, providers_data)
+    
+    print(f"✅ Initialized {len(providers_data)} built-in LLM providers")
 
 
-if __name__ == "__main__":
-    print("Initializing built-in LLM providers...\n")
-    asyncio.run(init_providers())
+def downgrade() -> None:
+    """Remove built-in LLM providers"""
+    # Delete all built-in providers
+    op.execute(
+        "DELETE FROM llm_providers WHERE is_builtin = true"
+    )
+    
+    print("✅ Removed all built-in LLM providers")
 

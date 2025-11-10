@@ -1,3 +1,12 @@
+/**
+ * @deprecated 此文件包含旧的前端扫描逻辑
+ * 
+ * 所有仓库扫描和 LLM 分析现在都在后端进行
+ * 请使用 taskHelper.ts 中的新函数
+ * 
+ * 此文件仅保留用于兼容性，未来版本将删除
+ */
+
 import { api } from "@/shared/config/database";
 import { CodeAnalysisEngine } from "@/features/analysis/services";
 import { taskControl } from "@/shared/services/taskControl";

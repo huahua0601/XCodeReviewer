@@ -162,14 +162,9 @@ export function getCurrentLLMModel(): string {
   return providerModelMap[provider] || '';
 }
 
-// 验证必需的环境变量
+// 验证必需的环境变量（已废弃：LLM 现在由后端管理）
+// @deprecated 使用后端 API 调用 LLM，不再需要前端验证 API Key
 export function validateEnv() {
-  const apiKey = getCurrentLLMApiKey();
-  
-  if (!apiKey) {
-    console.warn(`未配置 ${env.LLM_PROVIDER} 的API Key，请在环境变量中配置`);
-    return false;
-  }
-  
+  // LLM 配置现在由后端管理，前端不需要验证
   return true;
 }

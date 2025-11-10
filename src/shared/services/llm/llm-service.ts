@@ -62,14 +62,19 @@ export class LLMService {
 
   /**
    * 从环境变量创建默认实例
+   * @deprecated 建议使用后端 API 进行分析，LLM 配置由后端统一管理
    */
   static createFromEnv(): LLMService {
     const provider = env.LLM_PROVIDER as any || 'gemini';
     const apiKey = env.LLM_API_KEY || env.GEMINI_API_KEY;
     const model = env.LLM_MODEL || env.GEMINI_MODEL;
 
+    // 不再强制要求 API Key，因为 LLM 配置现在由后端管理
     if (!apiKey) {
-      throw new Error('未配置LLM API Key，请在环境变量中设置');
+      console.warn(
+        `⚠️ 未配置 ${provider} API Key\n` +
+        `建议使用后端 API 进行分析（更安全、更可靠）`
+      );
     }
 
     // 获取 baseUrl，优先使用通用配置，然后是平台专用配置
@@ -92,7 +97,7 @@ export class LLMService {
 
     const config: LLMConfig = {
       provider,
-      apiKey,
+      apiKey: apiKey || '', // 允许空字符串，在实际调用时会失败
       model,
       baseUrl,
       timeout: env.LLM_TIMEOUT || env.GEMINI_TIMEOUT_MS,

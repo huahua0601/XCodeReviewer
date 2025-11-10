@@ -10,7 +10,7 @@ from datetime import datetime
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy import table, column, String, DateTime, Boolean
+from sqlalchemy import table, column, String, DateTime, Boolean, Integer
 from passlib.context import CryptContext
 
 
@@ -37,6 +37,8 @@ def upgrade() -> None:
         column('role', String),
         column('is_active', Boolean),
         column('is_verified', Boolean),
+        column('force_password_change', Boolean),
+        column('failed_login_attempts', Integer),
         column('created_at', DateTime),
         column('updated_at', DateTime),
     )
@@ -61,9 +63,11 @@ def upgrade() -> None:
                     'email': 'admin@example.com',
                     'password_hash': hashed_password,
                     'full_name': 'Administrator',
-                    'role': 'admin',  # UserRole.ADMIN
+                    'role': 'ADMIN',  # UserRole.ADMIN (must match enum in database)
                     'is_active': True,
                     'is_verified': True,
+                    'force_password_change': False,
+                    'failed_login_attempts': 0,
                     'created_at': now,
                     'updated_at': now,
                 }

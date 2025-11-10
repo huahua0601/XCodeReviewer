@@ -11,9 +11,9 @@ from db.base import Base
 
 class UserRole(str, enum.Enum):
     """User role enumeration"""
-    ADMIN = "admin"
-    USER = "user"
-    VIEWER = "viewer"
+    ADMIN = "ADMIN"
+    USER = "USER"
+    VIEWER = "VIEWER"
 
 
 class User(Base):

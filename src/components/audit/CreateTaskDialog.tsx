@@ -23,8 +23,8 @@ import { apiClient } from "@/shared/services/api/client";
 import type { Project, CreateAuditTaskForm } from "@/shared/types";
 import { toast } from "sonner";
 import TerminalProgressDialog from "./TerminalProgressDialog";
-import { runRepositoryAudit } from "@/features/projects/services/repoScan";
-import { scanZipFile, validateZipFile } from "@/features/projects/services/repoZipScan";
+import { createRepositoryAuditTask, createZipAuditTask } from "@/features/projects/services/taskHelper";
+import { validateZipFile } from "@/features/projects/services/repoZipScan";
 import { loadZipFile } from "@/shared/utils/zipStorage";
 
 interface CreateTaskDialogProps {

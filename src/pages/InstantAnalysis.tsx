@@ -22,15 +22,12 @@ import {
   X,
   Download
 } from "lucide-react";
-import { CodeAnalysisEngine } from "@/features/analysis/services";
 import { api } from "@/shared/services/unified-api";
 import { apiClient } from "@/shared/services/api/client";
 import type { CodeAnalysisResult, AuditTask, AuditIssue } from "@/shared/types";
 import { toast } from "sonner";
 import ExportReportDialog from "@/components/reports/ExportReportDialog";
-
-// 检查是否使用后端API（即时分析始终使用后端）
-const USE_BACKEND_FOR_INSTANT_ANALYSIS = import.meta.env.VITE_USE_BACKEND_API === 'true';
+import { SUPPORTED_LANGUAGES } from "@/shared/constants";
 
 // AI解释解析函数
 function parseAIExplanation(aiExplanation: string) {
@@ -66,7 +63,7 @@ export default function InstantAnalysis() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const loadingCardRef = useRef<HTMLDivElement>(null);
 
-  const supportedLanguages = CodeAnalysisEngine.getSupportedLanguages();
+  const supportedLanguages = SUPPORTED_LANGUAGES;
 
   // 加载 LLM Providers
   useEffect(() => {
@@ -256,19 +253,12 @@ class UserManager {
 
       const startTime = Date.now();
 
-      let analysisResult: CodeAnalysisResult;
-      
-      // 根据配置选择使用后端API还是前端直接调用
-      if (USE_BACKEND_FOR_INSTANT_ANALYSIS) {
-        console.log('🔄 使用后端API进行即时代码分析', { 
-          provider_id: selectedProviderId,
-          provider_name: selectedProviderId ? llmProviders.find(p => p.id === selectedProviderId)?.display_name : '系统默认'
-        });
-        analysisResult = await api.analyzeInstantCode(code, language, selectedProviderId);
-      } else {
-        console.log('⚠️ 使用前端直接调用LLM（不推荐，会暴露API密钥）');
-        analysisResult = await CodeAnalysisEngine.analyzeCode(code, language);
-      }
+      // 使用后端 API 进行代码分析（LLM 配置由后端统一管理）
+      console.log('🔄 使用后端API进行即时代码分析', { 
+        provider_id: selectedProviderId,
+        provider_name: selectedProviderId ? llmProviders.find(p => p.id === selectedProviderId)?.display_name : '系统默认'
+      });
+      const analysisResult = await api.analyzeInstantCode(code, language, selectedProviderId);
       
       const endTime = Date.now();
       const duration = (endTime - startTime) / 1000;

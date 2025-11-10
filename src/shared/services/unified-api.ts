@@ -18,10 +18,13 @@ import type {
   CodeAnalysisResult
 } from '../types';
 
-// 检查是否使用后端 API
-const USE_BACKEND = import.meta.env.VITE_USE_BACKEND_API === 'true';
+/**
+ * 始终使用后端 API
+ * 本地 IndexedDB 模式已废弃，因为前端不再支持直接 LLM 推理
+ */
+const USE_BACKEND = true;
 
-console.log(`🔌 API Mode: ${USE_BACKEND ? 'Backend API' : 'Local IndexedDB'}`);
+console.log(`🔌 API Mode: Backend API (本地模式已移除)`);
 
 /**
  * 后端 API 数据格式转换适配器

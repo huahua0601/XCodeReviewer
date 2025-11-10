@@ -24,7 +24,7 @@ import {
   FileText
 } from "lucide-react";
 import { api } from "@/shared/services/unified-api";
-import { runRepositoryAudit, scanZipFile } from "@/features/projects/services";
+import { createRepositoryAuditTask, createZipAuditTask } from "@/features/projects/services";
 import type { Project, AuditTask, CreateProjectForm } from "@/shared/types";
 import { loadZipFile } from "@/shared/utils/zipStorage";
 import { toast } from "sonner";
@@ -106,19 +106,18 @@ export default function ProjectDetail() {
       // 有仓库地址，启动仓库审计
       try {
         setScanning(true);
-        console.log('开始启动仓库审计任务...');
-        const taskId = await runRepositoryAudit({
+        console.log('开始创建仓库审计任务（后端处理）...');
+        const taskId = await createRepositoryAuditTask({
           projectId: id,
           repoUrl: project.repository_url,
           branch: project.default_branch || 'main',
-          githubToken: undefined,
-          gitlabToken: undefined,
-          createdBy: undefined
+          createdBy: 'current-user' // TODO: 从认证状态获取
         });
         
         console.log('审计任务创建成功，taskId:', taskId);
+        toast.success('审计任务已创建，后端正在处理...');
         
-        // 显示终端进度窗口
+        // 显示终端进度窗口（通过 WebSocket 接收进度更新）
         setCurrentTaskId(taskId);
         setShowTerminalDialog(true);
         
@@ -137,19 +136,20 @@ export default function ProjectDetail() {
         const file = await loadZipFile(id);
         
         if (file) {
-          console.log('找到保存的ZIP文件，开始启动审计...');
+          console.log('找到保存的ZIP文件，创建审计任务（后端处理）...');
           try {
-            // 启动ZIP文件审计
-            const taskId = await scanZipFile({
+            // 创建ZIP文件审计任务（注意：ZIP文件应先上传到后端）
+            const taskId = await createZipAuditTask({
               projectId: id,
               zipFile: file,
               excludePatterns: ['node_modules/**', '.git/**', 'dist/**', 'build/**'],
-              createdBy: 'local-user'
+              createdBy: 'current-user' // TODO: 从认证状态获取
             });
             
             console.log('审计任务创建成功，taskId:', taskId);
+            toast.success('审计任务已创建，后端正在处理...');
             
-            // 显示终端进度窗口
+            // 显示终端进度窗口（通过 WebSocket 接收进度更新）
             setCurrentTaskId(taskId);
             setShowTerminalDialog(true);
             

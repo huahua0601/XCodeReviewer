@@ -1,47 +1,75 @@
-# 依赖
-node_modules
-
-# 构建产物
-dist
-.vite
-
-# 环境变量（保留 .env 用于构建）
-.env.local
-.env.*.local
-
-# 日志
-logs
-*.log
-npm-debug.log*
-pnpm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# 编辑器
-.vscode
-.idea
-*.swp
-*.swo
-*~
-
-# 操作系统
-.DS_Store
-Thumbs.db
-
 # Git
 .git
 .gitignore
 .gitattributes
 
-# 测试
-coverage
-.nyc_output
+# CI/CD
+.github
+.gitlab-ci.yml
 
-# 文档
-README.md
-README_EN.md
-docs
+# Documentation
+*.md
+docs/
+README*
+LICENSE
 
-# 其他
-.history
-.cache
+# Environment files
+.env
+.env.*
+!.env.example
+docker.env.sample
+
+# Development files
+node_modules/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+dist/
+build/
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets
+secrets/
+*.pem
+*.key
+*.crt
+
+# Backups
+backups/
+*.backup
+*.bak
+
+# History
+history/

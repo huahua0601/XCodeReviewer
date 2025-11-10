@@ -14,7 +14,8 @@ import type {
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const useLocalDB = import.meta.env.VITE_USE_LOCAL_DB === 'true';
+// 本地数据库模式已废弃，始终使用后端 API
+const useLocalDB = false;
 
 const isValidUuid = (value?: string): boolean => {
   if (!value) return false;

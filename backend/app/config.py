@@ -31,8 +31,9 @@ class Settings(BaseSettings):
     PORT: int = 8000
     WORKERS: int = 4
     
-    # CORS
+    # CORS - Allow all origins using regex pattern
     CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
+    CORS_ALLOW_ORIGIN_REGEX: Optional[str] = r"https?://.*"  # Allow all origins
     
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://user:pass@localhost:5432/xcodereviewer"

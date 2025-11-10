@@ -26,12 +26,8 @@ export abstract class BaseLLMAdapter implements ILLMAdapter {
   }
 
   async validateConfig(): Promise<boolean> {
-    if (!this.config.apiKey) {
-      throw new LLMError(
-        'API Key未配置',
-        this.config.provider
-      );
-    }
+    // LLM 配置现在由后端管理，前端不再校验 API Key
+    // 仅保留方法以保持接口兼容性
     return true;
   }
 
