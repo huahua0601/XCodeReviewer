@@ -322,7 +322,7 @@ class BackendAPIAdapter {
 
   // ==================== 问题相关 ====================
 
-  async getAuditIssues(taskId: string, page: number = 1, pageSize: number = 20, severity?: string, status?: string): Promise<{ items: AuditIssue[]; total: number; page: number; pageSize: number }> {
+  async getAuditIssues(taskId: string, page: number = 1, pageSize: number = 20, severity?: string, status?: string, search?: string): Promise<{ items: AuditIssue[]; total: number; page: number; pageSize: number }> {
     // 支持后端分页，避免一次性加载所有数据
     const params: any = { 
       task_id: Number(taskId),
@@ -338,6 +338,11 @@ class BackendAPIAdapter {
     // 如果指定了状态，添加过滤条件
     if (status && status !== 'all') {
       params.status_filter = status;
+    }
+    
+    // 如果指定了搜索关键字，添加搜索参数
+    if (search && search.trim()) {
+      params.search = search.trim();
     }
     
     const response = await backendApi.issues.list(params);
@@ -481,8 +486,8 @@ export const unifiedApi = {
     USE_BACKEND ? backendAdapter.updateAuditTask(id, updates) : localApi.updateAuditTask(id, updates),
 
   // 问题相关
-  getAuditIssues: (taskId: string, page?: number, pageSize?: number, severity?: string, status?: string) => 
-    USE_BACKEND ? backendAdapter.getAuditIssues(taskId, page, pageSize, severity, status) : localApi.getAuditIssues(taskId),
+  getAuditIssues: (taskId: string, page?: number, pageSize?: number, severity?: string, status?: string, search?: string) => 
+    USE_BACKEND ? backendAdapter.getAuditIssues(taskId, page, pageSize, severity, status, search) : localApi.getAuditIssues(taskId),
   createAuditIssue: (issue: Omit<AuditIssue, 'id' | 'created_at' | 'task' | 'resolver'>) =>
     USE_BACKEND ? backendAdapter.createAuditIssue(issue) : localApi.createAuditIssue(issue),
   updateAuditIssue: (id: string, updates: Partial<AuditIssue>) =>

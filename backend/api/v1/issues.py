@@ -40,6 +40,7 @@ async def list_issues(
     category: Optional[IssueCategory] = Query(None, description="Filter by category"),
     status_filter: Optional[IssueStatus] = Query(None, description="Filter by status"),
     file_path: Optional[str] = Query(None, description="Filter by file path"),
+    search: Optional[str] = Query(None, description="Search by title or description"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> IssueListResponse:
@@ -85,6 +86,14 @@ async def list_issues(
         
         if file_path:
             query = query.where(AuditIssue.file_path.ilike(f"%{file_path}%"))
+        
+        if search:
+            # Search in title and description
+            search_term = f"%{search}%"
+            query = query.where(
+                AuditIssue.title.ilike(search_term) | 
+                AuditIssue.description.ilike(search_term)
+            )
         
         # Get total count
         count_query = select(func.count()).select_from(query.subquery())

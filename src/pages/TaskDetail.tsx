@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import {
   ArrowLeft,
   Activity,
@@ -23,7 +24,8 @@ import {
   Info,
   Zap,
   X,
-  ChevronRight
+  ChevronRight,
+  Search
 } from "lucide-react";
 import { api } from "@/shared/services/unified-api";
 import type { AuditTask, AuditIssue } from "@/shared/types";
@@ -61,7 +63,9 @@ function IssuesList({
   onSeverityChange,
   onIssuesUpdate,
   statusFilter,
-  onStatusChange
+  onStatusChange,
+  searchKeyword,
+  onSearchChange
 }: { 
   issues: AuditIssue[]; 
   totalIssues: number;
@@ -71,6 +75,8 @@ function IssuesList({
   onIssuesUpdate: () => void;
   statusFilter: string;
   onStatusChange: (status: string) => void;
+  searchKeyword: string;
+  onSearchChange: (keyword: string) => void;
 }) {
   const [selectedIssues, setSelectedIssues] = useState<Set<number>>(new Set());
   const [isUpdating, setIsUpdating] = useState(false);
@@ -547,32 +553,47 @@ function IssuesList({
               )}
             </div>
             
-            <Select value={statusFilter} onValueChange={onStatusChange}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="问题状态" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部状态</SelectItem>
-                <SelectItem value="open">
-                  <span className="flex items-center">
-                    <span className="w-2 h-2 rounded-full bg-yellow-500 mr-2"></span>
-                    待确认
-                  </span>
-                </SelectItem>
-                <SelectItem value="resolved">
-                  <span className="flex items-center">
-                    <span className="w-2 h-2 rounded-full bg-green-500 mr-2"></span>
-                    已确认
-                  </span>
-                </SelectItem>
-                <SelectItem value="false_positive">
-                  <span className="flex items-center">
-                    <span className="w-2 h-2 rounded-full bg-gray-500 mr-2"></span>
-                    误报
-                  </span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center space-x-3">
+              {/* 搜索框 */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="搜索问题标题..."
+                  value={searchKeyword}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  className="pl-10 w-[240px]"
+                />
+              </div>
+              
+              {/* 状态筛选 */}
+              <Select value={statusFilter} onValueChange={onStatusChange}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="问题状态" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部状态</SelectItem>
+                  <SelectItem value="open">
+                    <span className="flex items-center">
+                      <span className="w-2 h-2 rounded-full bg-yellow-500 mr-2"></span>
+                      待确认
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="resolved">
+                    <span className="flex items-center">
+                      <span className="w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+                      已确认
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="false_positive">
+                    <span className="flex items-center">
+                      <span className="w-2 h-2 rounded-full bg-gray-500 mr-2"></span>
+                      误报
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       )}
@@ -704,6 +725,7 @@ export default function TaskDetail() {
   const [currentPage, setCurrentPage] = useState(1);
   const [currentSeverity, setCurrentSeverity] = useState('all');
   const [currentStatus, setCurrentStatus] = useState<string>('all');
+  const [searchKeyword, setSearchKeyword] = useState<string>('');
   const [totalIssues, setTotalIssues] = useState(0);
   const [issuesPerPage] = useState(20);
   const [isScanConfigExpanded, setIsScanConfigExpanded] = useState(false);
@@ -719,7 +741,7 @@ export default function TaskDetail() {
     if (id && task) {
       loadIssues();
     }
-  }, [id, currentPage, currentSeverity, currentStatus]);
+  }, [id, currentPage, currentSeverity, currentStatus, searchKeyword]);
 
   // 对于运行中或等待中的任务，静默更新进度（不触发loading状态）
   useEffect(() => {
@@ -751,7 +773,7 @@ export default function TaskDetail() {
 
       return () => clearInterval(intervalId);
     }
-  }, [task?.status, task?.scanned_files, id, currentPage, currentSeverity, currentStatus]);
+  }, [task?.status, task?.scanned_files, id, currentPage, currentSeverity, currentStatus, searchKeyword]);
 
   const loadTaskDetail = async () => {
     if (!id) return;
@@ -775,7 +797,7 @@ export default function TaskDetail() {
     if (!id) return;
 
     try {
-      const response = await api.getAuditIssues(id, currentPage, issuesPerPage, currentSeverity, currentStatus);
+      const response = await api.getAuditIssues(id, currentPage, issuesPerPage, currentSeverity, currentStatus, searchKeyword);
       // Debug: Check API response
       console.log('API Response:', {
         is_array: Array.isArray(response),
@@ -1211,6 +1233,11 @@ export default function TaskDetail() {
             onIssuesUpdate={loadIssues}
             statusFilter={currentStatus}
             onStatusChange={setCurrentStatus}
+            searchKeyword={searchKeyword}
+            onSearchChange={(keyword) => {
+              setSearchKeyword(keyword);
+              setCurrentPage(1); // 搜索时重置到第一页
+            }}
           />
           </CardContent>
         </Card>
