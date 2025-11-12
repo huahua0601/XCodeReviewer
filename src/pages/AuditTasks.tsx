@@ -385,6 +385,7 @@ export default function AuditTasks() {
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
         onTaskCreated={loadTasks}
+        showProgressDialog={false}
       />
     </div>
   );

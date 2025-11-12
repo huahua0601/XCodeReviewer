@@ -26,6 +26,7 @@ class ProjectCreate(BaseModel):
     repository_name: Optional[str] = Field(None, max_length=255, description="Repository name")
     branch: str = Field(default="main", max_length=100, description="Branch name")
     programming_languages: Optional[List[str]] = Field(None, description="List of programming languages used")
+    zip_file_path: Optional[str] = Field(None, max_length=500, description="Path to uploaded ZIP file in storage")
     
     class Config:
         json_schema_extra = {
@@ -76,6 +77,7 @@ class ProjectResponse(BaseModel):
     total_lines: int
     primary_language: Optional[str]
     programming_languages: Optional[str]  # JSON string of language list
+    zip_file_path: Optional[str]  # Path to uploaded ZIP file
     status: ProjectStatus
     created_at: datetime
     updated_at: datetime

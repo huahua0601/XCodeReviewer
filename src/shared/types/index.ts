@@ -26,9 +26,10 @@ export interface Project {
   name: string;
   description?: string;
   repository_url?: string;
-  repository_type?: 'github' | 'gitlab' | 'other';
+  repository_type?: 'github' | 'gitlab' | 'zip' | 'other';
   default_branch: string;
   programming_languages: string;
+  zip_file_path?: string;  // MinIO 中 ZIP 文件的路径
   owner_id: string;
   is_active: boolean;
   created_at: string;
@@ -119,9 +120,10 @@ export interface CreateProjectForm {
   name: string;
   description?: string;
   repository_url?: string;
-  repository_type?: 'github' | 'gitlab' | 'other';
+  repository_type?: 'github' | 'gitlab' | 'zip' | 'other';
   default_branch?: string;
   programming_languages: string[];
+  zip_file_path?: string;  // 上传的 ZIP 文件路径（MinIO 路径）
 }
 
 export interface CreateAuditTaskForm {

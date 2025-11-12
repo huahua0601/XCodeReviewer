@@ -93,13 +93,25 @@ async def _scan_repository_async(task, task_id: int) -> Dict[str, Any]:
             worker_prompt_template = await _get_worker_prompt_template(db)
             logger.info(f"Loaded worker prompt template ({len(worker_prompt_template)} chars)")
             
+            # Download ZIP file if needed
+            local_zip_path = None
+            if project.source_type == ProjectSource.ZIP and project.zip_file_path:
+                from services.storage.storage_service import storage_service
+                logger.info(f"Downloading ZIP file from: {project.zip_file_path}")
+                local_zip_path = storage_service.download_to_temp_file(
+                    project.zip_file_path,
+                    suffix=".zip"
+                )
+                logger.info(f"ZIP file downloaded to: {local_zip_path}")
+            
             # Scan repository
             scanner = get_repository_scanner()
-            logger.info(f"Scanning repository for project {project.id}")
+            logger.info(f"Scanning repository for project {project.id} (type: {project.source_type})")
             
             scan_result = await scanner.scan_repository(
                 source_type=project.source_type,
                 source_url=project.source_url,
+                zip_path=local_zip_path,
                 branch=project.branch
             )
             
@@ -217,6 +229,7 @@ async def _scan_repository_async(task, task_id: int) -> Dict[str, Any]:
                         source_type=project.source_type,
                         file_path=file_info["path"],
                         source_url=project.source_url,
+                        zip_path=local_zip_path,
                         branch=project.branch
                     )
                     
@@ -431,6 +444,14 @@ async def _scan_repository_async(task, task_id: int) -> Dict[str, Any]:
                 await db.commit()
             
             raise
+        finally:
+            # Clean up temporary ZIP file
+            if local_zip_path and os.path.exists(local_zip_path):
+                try:
+                    os.unlink(local_zip_path)
+                    logger.info(f"Cleaned up temporary ZIP file: {local_zip_path}")
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to cleanup temporary file: {cleanup_error}")
 
 
 @celery_app.task(bind=True, name="tasks.cancel_scan")

@@ -59,6 +59,7 @@ async def create_project(
             repository_name=project_data.repository_name,
             branch=project_data.branch,
             programming_languages=json.dumps(project_data.programming_languages) if project_data.programming_languages else None,
+            zip_file_path=project_data.zip_file_path,
             owner_id=current_user.id
         )
         

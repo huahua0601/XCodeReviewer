@@ -34,14 +34,29 @@ class BackendAPIAdapter {
    * 转换后端项目数据为前端格式
    */
   private transformProject(backendProject: any): Project {
+    // 映射后端的 source_type 到前端的 repository_type
+    const mapRepositoryType = (sourceType?: string): 'github' | 'gitlab' | 'other' => {
+      switch (sourceType) {
+        case 'github':
+          return 'github';
+        case 'gitlab':
+          return 'gitlab';
+        case 'local':
+        case 'zip':
+          return 'other';  // 'local' 和 'zip' 都映射到 'other'
+        default:
+          return 'github';
+      }
+    };
+
     return {
       id: backendProject.id?.toString() || backendProject.id,
       name: backendProject.name,
       description: backendProject.description || '',
       // 后端字段名可能是 source_url 或 repository_url
       repository_url: backendProject.repository_url || backendProject.source_url || '',
-      // 后端字段名可能是 source_type 或 repository_type
-      repository_type: backendProject.repository_type || backendProject.source_type || 'github',
+      // 后端字段名可能是 source_type 或 repository_type，需要映射
+      repository_type: mapRepositoryType(backendProject.repository_type || backendProject.source_type),
       // 后端字段名可能是 branch 或 default_branch
       default_branch: backendProject.default_branch || backendProject.branch || 'main',
       // 处理 programming_languages 字段（后端可能返回数组或字符串）
@@ -50,7 +65,8 @@ class BackendAPIAdapter {
         : JSON.stringify(backendProject.programming_languages || []),
       owner_id: backendProject.owner_id || backendProject.created_by || 'unknown',
       owner: backendProject.owner,
-      is_active: backendProject.is_active ?? true,
+      // 后端返回 status (active/archived/deleted)，前端期望 is_active (boolean)
+      is_active: backendProject.status === 'active' || backendProject.is_active === true,
       created_at: backendProject.created_at || new Date().toISOString(),
       updated_at: backendProject.updated_at || new Date().toISOString()
     };
@@ -135,16 +151,40 @@ class BackendAPIAdapter {
   }
 
   async createProject(project: CreateProjectForm & { owner_id?: string }): Promise<Project> {
+    // 将前端的 repository_type 映射到后端的 source_type
+    const mapSourceType = (repoType?: string, hasZipFile?: boolean): string => {
+      // 如果有 ZIP 文件路径，优先使用 'zip' 类型
+      if (hasZipFile) {
+        return 'zip';
+      }
+      
+      switch (repoType) {
+        case 'github':
+          return 'github';
+        case 'gitlab':
+          return 'gitlab';
+        case 'zip':
+          return 'zip';
+        case 'other':
+          // 'other' 映射到 'local'（本地项目）
+          return 'local';
+        default:
+          return 'github';
+      }
+    };
+
     // 将前端字段名映射到后端 API 期望的字段名
     const created = await backendApi.projects.create({
       name: project.name,
       description: project.description || '',
       source_url: project.repository_url || '',  // repository_url → source_url
-      source_type: (project.repository_type || 'github') as any,  // repository_type → source_type
+      source_type: mapSourceType(project.repository_type, !!project.zip_file_path),  // repository_type → source_type
       branch: project.default_branch || 'main',  // default_branch → branch
       repository_name: this.extractRepoName(project.repository_url),  // 从 URL 提取仓库名
       // 添加编程语言信息（后端期望数组格式）
-      programming_languages: project.programming_languages || []
+      programming_languages: project.programming_languages || [],
+      // 添加 ZIP 文件路径（MinIO 路径）
+      zip_file_path: project.zip_file_path || null
     } as any);
     return this.transformProject(created);
   }
@@ -170,12 +210,36 @@ class BackendAPIAdapter {
   }
 
   async updateProject(id: string, updates: Partial<CreateProjectForm>): Promise<Project> {
+    // 映射 repository_type 到 source_type
+    const mapSourceType = (repoType?: string, hasZipFile?: boolean): string | undefined => {
+      if (!repoType) return undefined;
+      
+      // 如果有 ZIP 文件路径，优先使用 'zip' 类型
+      if (hasZipFile) {
+        return 'zip';
+      }
+      
+      switch (repoType) {
+        case 'github':
+          return 'github';
+        case 'gitlab':
+          return 'gitlab';
+        case 'zip':
+          return 'zip';
+        case 'other':
+          return 'local';
+        default:
+          return repoType;
+      }
+    };
+
     // 将前端字段名映射到后端 API 期望的字段名
     const backendUpdates: any = {
       ...(updates.name && { name: updates.name }),
       ...(updates.description !== undefined && { description: updates.description }),
       ...(updates.repository_url !== undefined && { source_url: updates.repository_url }),
-      ...(updates.repository_type && { source_type: updates.repository_type }),
+      ...(updates.zip_file_path !== undefined && { zip_file_path: updates.zip_file_path }),
+      ...(updates.repository_type && { source_type: mapSourceType(updates.repository_type, !!updates.zip_file_path) }),
       ...(updates.default_branch && { branch: updates.default_branch }),
       ...(updates.programming_languages && { programming_languages: updates.programming_languages })
     };

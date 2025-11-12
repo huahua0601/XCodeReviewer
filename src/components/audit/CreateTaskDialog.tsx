@@ -32,9 +32,10 @@ interface CreateTaskDialogProps {
   onOpenChange: (open: boolean) => void;
   onTaskCreated: () => void;
   preselectedProjectId?: string;
+  showProgressDialog?: boolean; // 是否在创建后显示进度监控窗口
 }
 
-export default function CreateTaskDialog({ open, onOpenChange, onTaskCreated, preselectedProjectId }: CreateTaskDialogProps) {
+export default function CreateTaskDialog({ open, onOpenChange, onTaskCreated, preselectedProjectId, showProgressDialog = false }: CreateTaskDialogProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -108,7 +109,8 @@ export default function CreateTaskDialog({ open, onOpenChange, onTaskCreated, pr
       if (!taskForm.project_id || hasLoadedZip) return;
       
       const project = projects.find(p => p.id === taskForm.project_id);
-      if (!project || project.repository_type !== 'other') return;
+      // 检查是否是 ZIP 类型的项目
+      if (!project || project.repository_type !== 'zip') return;
       
       try {
         setLoadingZipFile(true);
@@ -255,14 +257,20 @@ export default function CreateTaskDialog({ open, onOpenChange, onTaskCreated, pr
       resetForm();
       onTaskCreated();
       
-      // 显示终端进度窗口
-      setCurrentTaskId(task.id);
-      setShowTerminalDialog(true);
-      
-      toast.success("审计任务已创建并启动", {
-        description: '任务正在后台处理，请稍后查看结果',
-        duration: 4000
-      });
+      // 根据配置决定是否显示终端进度窗口
+      if (showProgressDialog) {
+        setCurrentTaskId(task.id);
+        setShowTerminalDialog(true);
+        toast.success("审计任务已创建并启动", {
+          description: '正在监控任务进度...',
+          duration: 4000
+        });
+      } else {
+        toast.success("审计任务已创建并启动", {
+          description: '任务正在后台处理，请稍后在任务列表查看结果',
+          duration: 4000
+        });
+      }
     } catch (error) {
       console.error('❌ 创建任务失败:', error);
       
@@ -473,12 +481,25 @@ export default function CreateTaskDialog({ open, onOpenChange, onTaskCreated, pr
               </TabsList>
 
               <TabsContent value="basic" className="space-y-4 mt-6">
-                {/* ZIP项目文件上传 */}
-                {(!selectedProject.repository_url || selectedProject.repository_url.trim() === '') && (
-                  <Card className="bg-amber-50 border-amber-200">
+                {/* ZIP项目文件信息 */}
+                {(selectedProject.repository_type === 'zip' || selectedProject.zip_file_path) && (
+                  <Card className="bg-green-50 border-green-200">
                     <CardContent className="p-4">
                       <div className="space-y-3">
-                        {loadingZipFile ? (
+                        {selectedProject.zip_file_path ? (
+                          <div className="flex items-start space-x-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                            <Info className="w-5 h-5 text-green-600 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="font-medium text-green-900 text-sm">ZIP文件已就绪</p>
+                              <p className="text-xs text-green-700 mt-1">
+                                项目的 ZIP 文件已存储在服务器，扫描时会自动使用
+                              </p>
+                              <p className="text-xs text-gray-600 mt-1 font-mono break-all">
+                                路径: {selectedProject.zip_file_path}
+                              </p>
+                            </div>
+                          </div>
+                        ) : loadingZipFile ? (
                           <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
                             <p className="text-sm text-blue-800">正在加载保存的ZIP文件...</p>
@@ -516,7 +537,7 @@ export default function CreateTaskDialog({ open, onOpenChange, onTaskCreated, pr
                               <div>
                                 <p className="font-medium text-amber-900 text-sm">需要上传ZIP文件</p>
                                 <p className="text-xs text-amber-700 mt-1">
-                                  未找到保存的ZIP文件，请上传文件进行扫描
+                                  项目尚未上传 ZIP 文件，请先在项目管理中上传
                                 </p>
                               </div>
                             </div>

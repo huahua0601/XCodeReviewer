@@ -554,6 +554,57 @@ class StorageService:
             return None
         except Exception:
             return None
+    
+    def download_to_temp_file(self, s3_path: str, suffix: str = "") -> str:
+        """
+        Download file from S3 path to a temporary file.
+        
+        Args:
+            s3_path: S3 URL format (e.g., "s3://bucket/path/to/file.zip")
+                     or object path (e.g., "projects/1/file.zip")
+            suffix: File suffix for temp file (e.g., ".zip")
+            
+        Returns:
+            Path to temporary file
+            
+        Raises:
+            ValueError: If S3 path is invalid
+            Exception: If download fails
+        """
+        import tempfile
+        
+        # Parse S3 path
+        if s3_path.startswith('s3://'):
+            # Extract object path from s3://bucket/path
+            parts = s3_path.replace('s3://', '').split('/', 1)
+            if len(parts) == 2:
+                _, object_path = parts
+            else:
+                raise ValueError(f"Invalid S3 path format: {s3_path}")
+        else:
+            # Assume it's already an object path
+            object_path = s3_path
+        
+        logger.info(f"Downloading from storage: {object_path}")
+        
+        # Download file content
+        file_content = self.download_file(object_path)
+        
+        # Write to temporary file
+        temp_file = tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=suffix,
+            prefix="xcodereviewer_"
+        )
+        
+        try:
+            temp_file.write(file_content)
+            temp_file.flush()
+            temp_path = temp_file.name
+            logger.info(f"Downloaded to temporary file: {temp_path} ({len(file_content)} bytes)")
+            return temp_path
+        finally:
+            temp_file.close()
 
 
 # Export singleton instance

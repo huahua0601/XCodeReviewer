@@ -31,7 +31,6 @@ import {
 import { api } from "@/shared/services/unified-api";
 import { validateZipFile } from "@/features/projects/services";
 import type { Project, CreateProjectForm } from "@/shared/types";
-import { saveZipFile } from "@/shared/utils/zipStorage";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import CreateTaskDialog from "@/components/audit/CreateTaskDialog";
@@ -51,13 +50,15 @@ export default function Projects() {
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
+  const [uploadedZipPath, setUploadedZipPath] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<CreateProjectForm>({
     name: "",
     description: "",
     repository_url: "",
     repository_type: "github",
     default_branch: "main",
-    programming_languages: []
+    programming_languages: [],
+    zip_file_path: undefined
   });
   const [createForm, setCreateForm] = useState<CreateProjectForm>({
     name: "",
@@ -65,7 +66,8 @@ export default function Projects() {
     repository_url: "",
     repository_type: "github",
     default_branch: "main",
-    programming_languages: []
+    programming_languages: [],
+    zip_file_path: undefined
   });
 
   // 将小写语言名转换为显示格式
@@ -113,10 +115,8 @@ export default function Projects() {
     }
 
     try {
-      await api.createProject({
-        ...createForm,
-        // 无登录场景下不传 owner_id，由后端置为 null
-      } as any);
+      // 直接使用表单数据创建项目（zip_file_path 已经在表单中）
+      await api.createProject(createForm);
 
       // 记录用户操作
       import('@/shared/utils/logger').then(({ logger, LogCategory }) => {
@@ -124,12 +124,17 @@ export default function Projects() {
           projectName: createForm.name,
           repositoryType: createForm.repository_type,
           languages: createForm.programming_languages,
+          hasZipFile: !!uploadedZipPath
         });
       });
 
       toast.success("项目创建成功");
       setShowCreateDialog(false);
       resetCreateForm();
+      setUploadedZipPath(null); // 清空上传的文件路径
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       loadProjects();
     } catch (error) {
       console.error('Failed to create project:', error);
@@ -151,8 +156,13 @@ export default function Projects() {
       repository_url: "",
       repository_type: "github",
       default_branch: "main",
-      programming_languages: []
+      programming_languages: [],
+      zip_file_path: undefined
     });
+    setUploadedZipPath(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -163,63 +173,63 @@ export default function Projects() {
     const validation = validateZipFile(file);
     if (!validation.valid) {
       toast.error(validation.error);
-      return;
-    }
-
-    // 检查是否有项目名称
-    if (!createForm.name.trim()) {
-      toast.error("请先输入项目名称");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
     try {
       setUploading(true);
-      setUploadProgress(0);
+      setUploadProgress(10);
 
-      // 模拟上传进度
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(progressInterval);
-            return 100;
-          }
-          return prev + 20;
-        });
-      }, 100);
+      // 上传ZIP文件到服务器
+      const formData = new FormData();
+      formData.append('file', file);
 
-      // 创建项目
-      const project = await api.createProject({
-        ...createForm,
-        repository_type: "other"
-      } as any);
+      // 使用 fetch 上传文件（带进度）
+      const response = await fetch('/api/v1/upload/zip', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: formData
+      });
 
-      // 保存ZIP文件到IndexedDB（使用项目ID作为key）
-      try {
-        await saveZipFile(project.id, file);
-      } catch (error) {
-        console.error('保存ZIP文件失败:', error);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || '上传失败');
       }
 
-      clearInterval(progressInterval);
+      const result = await response.json();
+      
+      // 保存上传后的文件路径
+      setUploadedZipPath(result.file_path);
       setUploadProgress(100);
+
+      // 自动更新表单：设置 repository_type 为 'zip' 并保存文件路径
+      setCreateForm(prev => ({
+        ...prev,
+        repository_type: 'zip',
+        zip_file_path: result.file_path
+      }));
+
+      const sizeText = result.file_size >= 1024 * 1024 
+        ? `${(result.file_size / 1024 / 1024).toFixed(2)} MB`
+        : `${(result.file_size / 1024).toFixed(2)} KB`;
+
+      toast.success(`文件已上传: ${file.name} (${sizeText})`, {
+        description: '请点击"创建项目"按钮完成创建',
+        duration: 4000
+      });
 
       // 记录用户操作
       import('@/shared/utils/logger').then(({ logger, LogCategory }) => {
-        logger.logUserAction('上传ZIP文件创建项目', {
-          projectName: project.name,
+        logger.logUserAction('上传ZIP文件', {
           fileName: file.name,
-          fileSize: file.size,
+          fileSize: result.file_size,
+          filePath: result.file_path
         });
-      });
-
-      // 关闭创建对话框
-      setShowCreateDialog(false);
-      resetCreateForm();
-      loadProjects();
-
-      toast.success(`项目 "${project.name}" 已创建`, {
-        description: 'ZIP文件已保存，您可以启动代码审计',
-        duration: 4000
       });
 
     } catch (error: any) {
@@ -232,12 +242,16 @@ export default function Projects() {
       
       const errorMessage = error?.message || '未知错误';
       toast.error(`上传失败: ${errorMessage}`);
-    } finally {
-      setUploading(false);
-      setUploadProgress(0);
+      
+      // 清空文件路径
+      setUploadedZipPath(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    } finally {
+      setUploading(false);
+      // 不要重置进度条，让用户看到上传完成
+      setTimeout(() => setUploadProgress(0), 2000);
     }
   };
 
@@ -345,11 +359,8 @@ export default function Projects() {
   };
 
   const handleTaskCreated = () => {
-    toast.success("审计任务已创建", {
-      description: '因为网络和代码文件大小等因素，审计时长通常至少需要1分钟，请耐心等待...',
-      duration: 5000
-    });
-    // 任务创建后会自动跳转到项目详情页面
+    // 任务创建成功，刷新项目列表
+    loadProjects();
   };
 
   if (loading) {
@@ -553,26 +564,53 @@ export default function Projects() {
                       accept=".zip"
                       onChange={handleFileUpload}
                       className="hidden"
-                      disabled={uploading}
+                      disabled={uploading || !!uploadedZipPath}
                     />
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading || !createForm.name.trim()}
+                      disabled={uploading || !createForm.name.trim() || !!uploadedZipPath}
                     >
                       <FileText className="w-4 h-4 mr-2" />
-                      选择文件
+                      {uploadedZipPath ? '已上传文件' : '选择文件'}
                     </Button>
                   </div>
 
                   {uploading && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span>上传并分析中...</span>
+                        <span>上传中...</span>
                         <span>{uploadProgress}%</span>
                       </div>
                       <Progress value={uploadProgress} />
+                    </div>
+                  )}
+                  
+                  {uploadedZipPath && !uploading && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-start space-x-3">
+                        <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="font-medium text-green-900 text-sm">文件上传成功</p>
+                          <p className="text-xs text-green-700 mt-1">
+                            ZIP 文件已保存到服务器，请点击"创建项目"按钮完成创建
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-green-700 hover:text-green-900"
+                          onClick={() => {
+                            setUploadedZipPath(null);
+                            if (fileInputRef.current) {
+                              fileInputRef.current.value = '';
+                            }
+                          }}
+                        >
+                          重新上传
+                        </Button>
+                      </div>
                     </div>
                   )}
 
@@ -595,6 +633,13 @@ export default function Projects() {
                 <div className="flex justify-end space-x-3 pt-4">
                   <Button variant="outline" onClick={() => setShowCreateDialog(false)} disabled={uploading}>
                     取消
+                  </Button>
+                  <Button 
+                    onClick={handleCreateProject} 
+                    disabled={!createForm.name.trim() || !uploadedZipPath || uploading}
+                    className="btn-primary"
+                  >
+                    创建项目
                   </Button>
                 </div>
               </TabsContent>
@@ -828,6 +873,7 @@ export default function Projects() {
         onOpenChange={setShowCreateTaskDialog}
         onTaskCreated={handleTaskCreated}
         preselectedProjectId={selectedProjectForTask}
+        showProgressDialog={false}
       />
 
       {/* 编辑项目对话框 */}

@@ -44,6 +44,7 @@ class Project(Base):
     source_url: Mapped[str] = mapped_column(String(500), nullable=True)
     repository_name: Mapped[str] = mapped_column(String(255), nullable=True)
     branch: Mapped[str] = mapped_column(String(100), default="main", nullable=False)
+    zip_file_path: Mapped[str] = mapped_column(String(500), nullable=True, comment="Path to uploaded ZIP file in storage")
     
     # Statistics
     total_files: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
