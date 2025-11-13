@@ -13,6 +13,7 @@ class ProjectSource(str, enum.Enum):
     """Project source type"""
     GITHUB = "github"
     GITLAB = "gitlab"
+    CODECOMMIT = "codecommit"
     ZIP = "zip"
     LOCAL = "local"
 

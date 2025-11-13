@@ -143,10 +143,13 @@ async def list_tasks(
         Paginated list of tasks
     """
     try:
-        # Build query - join with projects to filter by owner and eagerly load project
+        # Build query - join with projects to filter by owner and eagerly load project and llm_provider
         query = select(AuditTask).join(Project).where(
             Project.owner_id == current_user.id
-        ).options(selectinload(AuditTask.project))
+        ).options(
+            selectinload(AuditTask.project),
+            selectinload(AuditTask.llm_provider)
+        )
         
         # Apply filters
         if project_id:
@@ -209,13 +212,16 @@ async def get_task(
         Task details
     """
     try:
-        # Get task with project ownership check and eagerly load project
+        # Get task with project ownership check and eagerly load project and llm_provider
         query = select(AuditTask).join(Project).where(
             and_(
                 AuditTask.id == task_id,
                 Project.owner_id == current_user.id
             )
-        ).options(selectinload(AuditTask.project))
+        ).options(
+            selectinload(AuditTask.project),
+            selectinload(AuditTask.llm_provider)
+        )
         result = await db.execute(query)
         task = result.scalar_one_or_none()
         

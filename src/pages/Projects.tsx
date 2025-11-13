@@ -421,6 +421,7 @@ export default function Projects() {
                       <SelectContent>
                         <SelectItem value="github">GitHub</SelectItem>
                         <SelectItem value="gitlab">GitLab</SelectItem>
+                        <SelectItem value="codecommit">AWS CodeCommit</SelectItem>
                         <SelectItem value="other">其他</SelectItem>
                       </SelectContent>
                     </Select>
@@ -935,6 +936,7 @@ export default function Projects() {
                     <SelectContent>
                       <SelectItem value="github">GitHub</SelectItem>
                       <SelectItem value="gitlab">GitLab</SelectItem>
+                      <SelectItem value="codecommit">AWS CodeCommit</SelectItem>
                       <SelectItem value="other">其他</SelectItem>
                     </SelectContent>
                   </Select>

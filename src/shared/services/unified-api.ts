@@ -35,15 +35,18 @@ class BackendAPIAdapter {
    */
   private transformProject(backendProject: any): Project {
     // 映射后端的 source_type 到前端的 repository_type
-    const mapRepositoryType = (sourceType?: string): 'github' | 'gitlab' | 'other' => {
+    const mapRepositoryType = (sourceType?: string): 'github' | 'gitlab' | 'codecommit' | 'zip' | 'other' => {
       switch (sourceType) {
         case 'github':
           return 'github';
         case 'gitlab':
           return 'gitlab';
-        case 'local':
+        case 'codecommit':
+          return 'codecommit';
         case 'zip':
-          return 'other';  // 'local' 和 'zip' 都映射到 'other'
+          return 'zip';
+        case 'local':
+          return 'other';  // 'local' 映射到 'other'
         default:
           return 'github';
       }
@@ -101,7 +104,10 @@ class BackendAPIAdapter {
       completed_at: backendTask.completed_at || null,
       created_by: backendTask.created_by || 'unknown',
       creator: backendTask.creator,
-      created_at: backendTask.created_at || new Date().toISOString()
+      created_at: backendTask.created_at || new Date().toISOString(),
+      // 添加 LLM Provider 信息
+      llm_provider_id: backendTask.llm_provider_id || undefined,
+      llm_provider: backendTask.llm_provider || undefined
     };
   }
 
@@ -163,6 +169,8 @@ class BackendAPIAdapter {
           return 'github';
         case 'gitlab':
           return 'gitlab';
+        case 'codecommit':
+          return 'codecommit';
         case 'zip':
           return 'zip';
         case 'other':
@@ -198,9 +206,16 @@ class BackendAPIAdapter {
     
     try {
       // 匹配 GitHub/GitLab URL 模式
-      const match = url.match(/(?:github\.com|gitlab\.com)\/([^/]+\/[^/]+)/);
-      if (match && match[1]) {
-        return match[1].replace(/\.git$/, ''); // 移除 .git 后缀
+      const githubGitlabMatch = url.match(/(?:github\.com|gitlab\.com)\/([^/]+\/[^/]+)/);
+      if (githubGitlabMatch && githubGitlabMatch[1]) {
+        return githubGitlabMatch[1].replace(/\.git$/, ''); // 移除 .git 后缀
+      }
+      
+      // 匹配 AWS CodeCommit URL
+      // https://git-codecommit.{region}.amazonaws.com/v1/repos/{repo-name}
+      const codecommitMatch = url.match(/git-codecommit\.[^.]+\.amazonaws\.com\/v1\/repos\/([^/]+)/);
+      if (codecommitMatch && codecommitMatch[1]) {
+        return codecommitMatch[1];
       }
     } catch (error) {
       console.warn('Failed to extract repository name from URL:', url, error);
@@ -224,6 +239,8 @@ class BackendAPIAdapter {
           return 'github';
         case 'gitlab':
           return 'gitlab';
+        case 'codecommit':
+          return 'codecommit';
         case 'zip':
           return 'zip';
         case 'other':

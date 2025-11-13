@@ -1,5 +1,5 @@
 """Repository Scanner
-Main scanner service that orchestrates GitHub/GitLab/ZIP scanning.
+Main scanner service that orchestrates GitHub/GitLab/CodeCommit/ZIP scanning.
 """
 from typing import Dict, List, Optional, Any
 from loguru import logger
@@ -7,6 +7,7 @@ from datetime import datetime
 
 from services.repository.github_client import GitHubClient, parse_github_url
 from services.repository.gitlab_client import GitLabClient, parse_gitlab_url
+from services.repository.codecommit_client import CodeCommitClient, parse_codecommit_url
 from services.repository.zip_handler import ZipHandler
 from services.repository.file_filter import FileFilter
 from core.exceptions import RepositoryError
@@ -31,8 +32,8 @@ class RepositoryScanner:
         Scan repository and return file tree with metadata.
         
         Args:
-            source_type: Source type (github, gitlab, zip, local)
-            source_url: Repository URL (for github/gitlab)
+            source_type: Source type (github, gitlab, codecommit, zip, local)
+            source_url: Repository URL (for github/gitlab/codecommit)
             zip_path: Path to ZIP file (for zip)
             branch: Branch name (optional)
             
@@ -44,6 +45,8 @@ class RepositoryScanner:
                 return await self._scan_github(source_url, branch)
             elif source_type == ProjectSource.GITLAB:
                 return await self._scan_gitlab(source_url, branch)
+            elif source_type == ProjectSource.CODECOMMIT:
+                return await self._scan_codecommit(source_url, branch)
             elif source_type == ProjectSource.ZIP:
                 return await self._scan_zip(zip_path)
             else:
@@ -167,6 +170,100 @@ class RepositoryScanner:
             logger.error(f"Error scanning GitLab repository: {e}")
             raise RepositoryError(f"Error scanning GitLab repository: {e}")
     
+    async def _scan_codecommit(
+        self,
+        url: str,
+        branch: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Scan AWS CodeCommit repository.
+        
+        Args:
+            url: CodeCommit repository URL
+            branch: Branch name (optional)
+            
+        Returns:
+            Scan results
+        """
+        try:
+            # Parse URL
+            region, repo_name, default_branch = await parse_codecommit_url(url)
+            branch = branch or default_branch
+            
+            async with CodeCommitClient(region=region) as client:
+                # Get repository info
+                repo_info = await client.get_repository(repo_name)
+                
+                # Get file tree
+                tree = await client.get_file_tree(repo_name, branch)
+                
+                # Filter files
+                filtered_files = self.file_filter.filter_files(tree)
+                
+                # Get statistics
+                stats = self.file_filter.get_statistics(filtered_files)
+                
+                # CodeCommit doesn't provide languages API, estimate from files
+                languages = self._estimate_languages(filtered_files)
+                
+                return {
+                    "source_type": "codecommit",
+                    "repository_name": repo_name,
+                    "branch": branch,
+                    "files": filtered_files,
+                    "total_files": len(filtered_files),
+                    "languages": languages,
+                    "primary_language": stats["primary_language"],
+                    "total_size": stats["total_size"],
+                    "scanned_at": datetime.utcnow().isoformat()
+                }
+                
+        except Exception as e:
+            logger.error(f"Error scanning CodeCommit repository: {e}")
+            raise RepositoryError(f"Error scanning CodeCommit repository: {e}")
+    
+    def _estimate_languages(self, files: List[Dict[str, Any]]) -> Dict[str, int]:
+        """
+        Estimate programming languages based on file extensions.
+        
+        Args:
+            files: List of files
+            
+        Returns:
+            Dictionary mapping language to file count
+        """
+        extension_map = {
+            '.py': 'Python',
+            '.js': 'JavaScript',
+            '.ts': 'TypeScript',
+            '.tsx': 'TypeScript',
+            '.jsx': 'JavaScript',
+            '.java': 'Java',
+            '.go': 'Go',
+            '.rs': 'Rust',
+            '.cpp': 'C++',
+            '.cc': 'C++',
+            '.c': 'C',
+            '.h': 'C',
+            '.cs': 'C#',
+            '.php': 'PHP',
+            '.rb': 'Ruby',
+            '.swift': 'Swift',
+            '.kt': 'Kotlin',
+            '.scala': 'Scala',
+            '.sh': 'Shell',
+        }
+        
+        languages = {}
+        for file in files:
+            path = file.get('path', '')
+            for ext, lang in extension_map.items():
+                if path.endswith(ext):
+                    languages[lang] = languages.get(lang, 0) + 1
+                    break
+        
+        return languages
+    
     async def _scan_zip(self, zip_path: str) -> Dict[str, Any]:
         """
         Scan ZIP file.
@@ -268,7 +365,7 @@ class RepositoryScanner:
         Args:
             source_type: Source type
             file_path: File path
-            source_url: Repository URL (for github/gitlab)
+            source_url: Repository URL (for github/gitlab/codecommit)
             zip_path: Path to ZIP file (for zip)
             branch: Branch name (optional)
             
@@ -289,6 +386,13 @@ class RepositoryScanner:
                 
                 async with GitLabClient() as client:
                     return await client.get_file_content(project_path, file_path, branch)
+            
+            elif source_type == ProjectSource.CODECOMMIT:
+                region, repo_name, default_branch = await parse_codecommit_url(source_url)
+                branch = branch or default_branch
+                
+                async with CodeCommitClient(region=region) as client:
+                    return await client.get_file_content(repo_name, file_path, branch)
                     
             elif source_type == ProjectSource.ZIP:
                 async with ZipHandler(zip_path) as handler:
