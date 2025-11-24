@@ -213,6 +213,112 @@ class GitLabClient:
             logger.error(f"Error fetching branches: {e}")
             return []
     
+    def get_merge_request(self, project_id: str, mr_iid: int) -> Dict[str, Any]:
+        """
+        Get merge request information (sync version)
+        
+        Args:
+            project_id: Project ID or path
+            mr_iid: Merge request IID (internal ID)
+            
+        Returns:
+            Merge request information
+        """
+        try:
+            import requests
+            from urllib.parse import quote
+            
+            encoded_id = quote(project_id, safe="")
+            headers = {
+                "User-Agent": "XCodeReviewer"
+            }
+            if self.token:
+                headers["PRIVATE-TOKEN"] = self.token
+            
+            response = requests.get(
+                f"{self.API_BASE}/projects/{encoded_id}/merge_requests/{mr_iid}",
+                headers=headers,
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error fetching MR: {e}")
+            raise RepositoryError(f"Error fetching MR {mr_iid}: {e}")
+    
+    def get_merge_request_changes(self, project_id: str, mr_iid: int) -> Dict[str, Any]:
+        """
+        Get merge request changes (files and diffs) (sync version)
+        
+        Args:
+            project_id: Project ID or path
+            mr_iid: Merge request IID
+            
+        Returns:
+            MR changes with file diffs
+        """
+        try:
+            import requests
+            from urllib.parse import quote
+            
+            encoded_id = quote(project_id, safe="")
+            headers = {
+                "User-Agent": "XCodeReviewer"
+            }
+            if self.token:
+                headers["PRIVATE-TOKEN"] = self.token
+            
+            response = requests.get(
+                f"{self.API_BASE}/projects/{encoded_id}/merge_requests/{mr_iid}/changes",
+                headers=headers,
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error fetching MR changes: {e}")
+            raise RepositoryError(f"Error fetching MR changes: {e}")
+    
+    def create_mr_note(
+        self,
+        project_id: str,
+        mr_iid: int,
+        body: str
+    ) -> Dict[str, Any]:
+        """
+        Create a note (comment) on a merge request (sync version)
+        
+        Args:
+            project_id: Project ID or path
+            mr_iid: Merge request IID
+            body: Note body (markdown supported)
+            
+        Returns:
+            Created note information
+        """
+        try:
+            import requests
+            from urllib.parse import quote
+            
+            encoded_id = quote(project_id, safe="")
+            headers = {
+                "User-Agent": "XCodeReviewer"
+            }
+            if self.token:
+                headers["PRIVATE-TOKEN"] = self.token
+            
+            response = requests.post(
+                f"{self.API_BASE}/projects/{encoded_id}/merge_requests/{mr_iid}/notes",
+                headers=headers,
+                json={"body": body},
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error creating MR note: {e}")
+            raise RepositoryError(f"Error creating MR note: {e}")
+    
     async def __aenter__(self):
         return self
     

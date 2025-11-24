@@ -441,3 +441,63 @@ async def restore_project(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to restore project"
         )
+
+
+@router.delete(
+    "/{project_id}/permanent",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Permanently delete project",
+    description="Permanently delete a project from database (physical delete)"
+)
+async def permanently_delete_project(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Permanently delete a project (physical delete).
+    
+    Args:
+        project_id: Project ID
+        current_user: Authenticated user
+        db: Database session
+    """
+    try:
+        # Get project (including deleted ones)
+        query = select(Project).where(
+            and_(
+                Project.id == project_id,
+                Project.owner_id == current_user.id
+            )
+        )
+        result = await db.execute(query)
+        project = result.scalar_one_or_none()
+        
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project {project_id} not found"
+            )
+        
+        # 只允许删除已经软删除的项目
+        if project.status != ProjectStatus.DELETED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only deleted projects can be permanently deleted. Please delete the project first."
+            )
+        
+        # Physical delete - cascading will handle related records
+        await db.delete(project)
+        await db.commit()
+        
+        logger.info(f"Permanently deleted project {project_id}")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error permanently deleting project {project_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to permanently delete project"
+        )

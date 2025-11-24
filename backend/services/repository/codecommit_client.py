@@ -202,6 +202,25 @@ class CodeCommitClient:
         except UnicodeDecodeError as e:
             logger.error(f"Unicode decode error for {file_path}: {e}")
             raise RepositoryError(f"File {file_path} is not a text file")
+    
+    def get_pull_request(self, pull_request_id: str) -> Dict[str, Any]:
+        """
+        Get pull request information
+        
+        Args:
+            pull_request_id: Pull request ID
+            
+        Returns:
+            Pull request information
+        """
+        try:
+            response = self.client.get_pull_request(
+                pullRequestId=pull_request_id
+            )
+            return response['pullRequest']
+        except ClientError as e:
+            logger.error(f"Error getting pull request: {e}")
+            raise RepositoryError(f"Failed to get pull request {pull_request_id}: {e}")
 
 
 async def parse_codecommit_url(url: str) -> tuple[str, str, str]:

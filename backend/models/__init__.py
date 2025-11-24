@@ -8,5 +8,22 @@ from models.report import Report
 from models.system_settings import SystemSettings
 from models.prompt import Prompt
 from models.llm_provider import LLMProvider
+from models.pull_request import PullRequest, PRStatus
+from models.webhook import WebhookConfig, WebhookLog, PRComment, WebhookPlatform
 
-__all__ = ["User", "Project", "AuditTask", "AuditIssue", "Report", "SystemSettings", "Prompt", "LLMProvider"]
+__all__ = [
+    "User", 
+    "Project", 
+    "AuditTask", 
+    "AuditIssue", 
+    "Report", 
+    "SystemSettings", 
+    "Prompt", 
+    "LLMProvider",
+    "PullRequest",
+    "PRStatus",
+    "WebhookConfig",
+    "WebhookLog",
+    "PRComment",
+    "WebhookPlatform"
+]

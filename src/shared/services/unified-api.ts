@@ -294,8 +294,8 @@ class BackendAPIAdapter {
   }
 
   async permanentlyDeleteProject(id: string): Promise<void> {
-    // 永久删除暂时使用软删除（后端可以添加一个 force 参数来实现真正的物理删除）
-    await backendApi.projects.delete(Number(id));
+    // 永久删除项目（物理删除）
+    await backendApi.projects.permanentlyDelete(Number(id));
   }
 
   // ==================== 任务相关 ====================
@@ -471,6 +471,55 @@ class BackendAPIAdapter {
     const result = await backendApi.instantAnalysis.analyze({ code, language, llm_provider_id });
     return result as CodeAnalysisResult;
   }
+
+  // ==================== Pull Request API ====================
+  
+  async getPullRequests(projectId: number, status?: string, page: number = 1, pageSize: number = 20): Promise<{ items: PullRequest[]; total: number; page: number; pageSize: number }> {
+    const params: any = { project_id: projectId, page, page_size: pageSize };
+    if (status) params.status = status;
+    
+    const response = await backendApi.pullRequests.list(params);
+    return {
+      items: response.items || [],
+      total: response.total || 0,
+      page: response.page || page,
+      pageSize: response.page_size || pageSize
+    };
+  }
+
+  async getPullRequestById(prId: number): Promise<PullRequest> {
+    return await backendApi.pullRequests.get(prId);
+  }
+
+  async importPullRequest(projectId: number, prNumber: number): Promise<PullRequest> {
+    return await backendApi.pullRequests.import({ project_id: projectId, pr_number: prNumber });
+  }
+
+  async triggerPRScan(prId: number): Promise<{ status: string; task_id: string }> {
+    return await backendApi.pullRequests.scan(prId);
+  }
+
+  // ==================== Webhook API ====================
+  
+  async createWebhookConfig(config: CreateWebhookConfigForm): Promise<WebhookConfig> {
+    return await backendApi.webhooks.createConfig(config);
+  }
+
+  async getWebhookConfig(projectId: number): Promise<WebhookConfig | null> {
+    try {
+      return await backendApi.webhooks.getConfig(projectId);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async deleteWebhookConfig(configId: number): Promise<void> {
+    await backendApi.webhooks.deleteConfig(configId);
+  }
+
+  async getWebhookLogs(webhookId: number, limit: number = 50): Promise<WebhookLog[]> {
+    return await backendApi.webhooks.getLogs(webhookId, limit);
+  }
 }
 
 // 创建适配器实例
@@ -549,6 +598,20 @@ export const unifiedApi = {
 
   // System Settings API - 直接使用后端 API（系统设置总是使用后端）
   systemSettings: backendApi.systemSettings,
+
+  // Pull Request API
+  getPullRequests: (projectId: number, status?: string, page?: number, pageSize?: number) =>
+    backendAdapter.getPullRequests(projectId, status, page, pageSize),
+  getPullRequestById: (prId: number) => backendAdapter.getPullRequestById(prId),
+  importPullRequest: (projectId: number, prNumber: number) =>
+    backendAdapter.importPullRequest(projectId, prNumber),
+  triggerPRScan: (prId: number) => backendAdapter.triggerPRScan(prId),
+
+  // Webhook API
+  createWebhookConfig: (config: CreateWebhookConfigForm) => backendAdapter.createWebhookConfig(config),
+  getWebhookConfig: (projectId: number) => backendAdapter.getWebhookConfig(projectId),
+  deleteWebhookConfig: (configId: number) => backendAdapter.deleteWebhookConfig(configId),
+  getWebhookLogs: (webhookId: number, limit?: number) => backendAdapter.getWebhookLogs(webhookId, limit),
 };
 
 // 导出为默认 api

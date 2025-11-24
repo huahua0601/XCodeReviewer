@@ -227,6 +227,164 @@ class GitHubClient:
             logger.error(f"Error checking rate limit: {e}")
             return True  # Assume OK if check fails
     
+    def get_pull_request(self, owner: str, repo: str, pr_number: int) -> Dict[str, Any]:
+        """
+        Get pull request information (sync version for non-async context)
+        
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            pr_number: Pull request number
+            
+        Returns:
+            Pull request information
+        """
+        try:
+            import requests
+            headers = {
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "XCodeReviewer"
+            }
+            if self.token:
+                headers["Authorization"] = f"token {self.token}"
+            
+            response = requests.get(
+                f"{self.API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}",
+                headers=headers,
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error fetching PR: {e}")
+            raise RepositoryError(f"Error fetching PR {pr_number}: {e}")
+    
+    def get_pull_request_files(self, owner: str, repo: str, pr_number: int) -> List[Dict[str, Any]]:
+        """
+        Get files changed in a pull request (sync version)
+        
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            pr_number: Pull request number
+            
+        Returns:
+            List of changed files with diffs
+        """
+        try:
+            import requests
+            headers = {
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "XCodeReviewer"
+            }
+            if self.token:
+                headers["Authorization"] = f"token {self.token}"
+            
+            response = requests.get(
+                f"{self.API_BASE}/repos/{owner}/{repo}/pulls/{pr_number}/files",
+                headers=headers,
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error fetching PR files: {e}")
+            raise RepositoryError(f"Error fetching PR files: {e}")
+    
+    def create_pr_comment(
+        self,
+        owner: str,
+        repo: str,
+        pr_number: int,
+        body: str
+    ) -> Dict[str, Any]:
+        """
+        Create a comment on a pull request (sync version)
+        
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            pr_number: Pull request number
+            body: Comment body (markdown supported)
+            
+        Returns:
+            Created comment information
+        """
+        try:
+            import requests
+            headers = {
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "XCodeReviewer"
+            }
+            if self.token:
+                headers["Authorization"] = f"token {self.token}"
+            
+            response = requests.post(
+                f"{self.API_BASE}/repos/{owner}/{repo}/issues/{pr_number}/comments",
+                headers=headers,
+                json={"body": body},
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error creating PR comment: {e}")
+            raise RepositoryError(f"Error creating PR comment: {e}")
+    
+    def create_commit_status(
+        self,
+        owner: str,
+        repo: str,
+        commit_sha: str,
+        state: str,
+        description: str,
+        context: str = "XCodeReviewer",
+        target_url: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a commit status (check)
+        
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            commit_sha: Commit SHA
+            state: Status state (pending, success, error, failure)
+            description: Short description
+            context: Status context name
+            target_url: URL to details page
+            
+        Returns:
+            Created status information
+        """
+        try:
+            import requests
+            headers = {
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "XCodeReviewer"
+            }
+            if self.token:
+                headers["Authorization"] = f"token {self.token}"
+            
+            payload = {
+                "state": state,
+                "description": description,
+                "context": context
+            }
+            if target_url:
+                payload["target_url"] = target_url
+            
+            response = requests.post(
+                f"{self.API_BASE}/repos/{owner}/{repo}/statuses/{commit_sha}",
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error creating commit status: {e}")
+            raise RepositoryError(f"Error creating commit status: {e}")
+    
     async def __aenter__(self):
         return self
     

@@ -167,6 +167,12 @@ export const projectApi = {
     apiClient.post<Project>(`/projects/${id}/restore`),
 
   /**
+   * Permanently delete project (physical delete)
+   */
+  permanentlyDelete: (id: number) =>
+    apiClient.delete(`/projects/${id}/permanent`),
+
+  /**
    * Get project statistics
    */
   getStats: (id: number) =>
@@ -554,6 +560,77 @@ export const promptsApi = {
 };
 
 // ============================================================================
+// Pull Request API
+// ============================================================================
+
+export const pullRequestApi = {
+  /**
+   * List pull requests for a project
+   */
+  list: (params: {
+    project_id: number;
+    status?: string;
+    page?: number;
+    page_size?: number;
+  }) =>
+    apiClient.get('/pull-requests', { params }),
+
+  /**
+   * Get pull request by ID
+   */
+  get: (id: number) =>
+    apiClient.get(`/pull-requests/${id}`),
+
+  /**
+   * Import a pull request from repository
+   */
+  import: (data: { project_id: number; pr_number: number }) =>
+    apiClient.post('/pull-requests/import', null, { params: data }),
+
+  /**
+   * Trigger scan for a pull request
+   */
+  scan: (id: number) =>
+    apiClient.post(`/pull-requests/${id}/scan`),
+};
+
+// ============================================================================
+// Webhook API
+// ============================================================================
+
+export const webhookApi = {
+  /**
+   * Create webhook configuration
+   */
+  createConfig: (data: {
+    project_id: number;
+    platform: string;
+    events: string[];
+    auto_scan_enabled: boolean;
+    auto_comment_enabled: boolean;
+  }) =>
+    apiClient.post('/webhooks/configs', data),
+
+  /**
+   * Get webhook configuration for a project
+   */
+  getConfig: (projectId: number) =>
+    apiClient.get(`/webhooks/configs/project/${projectId}`),
+
+  /**
+   * Delete webhook configuration
+   */
+  deleteConfig: (configId: number) =>
+    apiClient.delete(`/webhooks/configs/${configId}`),
+
+  /**
+   * Get webhook logs
+   */
+  getLogs: (webhookId: number, limit: number = 50) =>
+    apiClient.get(`/webhooks/logs/${webhookId}`, { params: { limit } }),
+};
+
+// ============================================================================
 // System Settings API
 // ============================================================================
 
@@ -645,6 +722,8 @@ export const api = {
   instantAnalysis: instantAnalysisApi,
   systemSettings: systemSettingsApi,
   prompts: promptsApi,
+  pullRequests: pullRequestApi,
+  webhooks: webhookApi,
 };
 
 export default api;

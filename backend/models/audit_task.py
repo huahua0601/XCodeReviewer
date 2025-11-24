@@ -105,11 +105,17 @@ class AuditTask(Base):
         nullable=True,
         index=True
     )
+    pull_request_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("pull_requests.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True
+    )
     
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="audit_tasks")
     created_by_user: Mapped["User"] = relationship("User", back_populates="audit_tasks")
     llm_provider: Mapped[Optional["LLMProvider"]] = relationship("LLMProvider", lazy="joined")
+    pull_request: Mapped[Optional["PullRequest"]] = relationship("PullRequest", back_populates="audit_tasks")
     
     issues: Mapped[List["AuditIssue"]] = relationship(
         "AuditIssue",

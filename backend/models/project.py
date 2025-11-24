@@ -90,5 +90,18 @@ class Project(Base):
         cascade="all, delete-orphan"
     )
     
+    pull_requests: Mapped[List["PullRequest"]] = relationship(
+        "PullRequest",
+        back_populates="project",
+        cascade="all, delete-orphan"
+    )
+    
+    webhook_config: Mapped[Optional["WebhookConfig"]] = relationship(
+        "WebhookConfig",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        uselist=False
+    )
+    
     def __repr__(self) -> str:
         return f"<Project(id={self.id}, name={self.name}, source={self.source_type})>"

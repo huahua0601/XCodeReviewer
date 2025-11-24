@@ -60,11 +60,12 @@ export interface LLMProviderInfo {
 export interface AuditTask {
   id: string;
   project_id: string;
-  task_type: 'repository' | 'instant';
+  task_type: 'repository' | 'instant' | 'pull_request';
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   branch_name?: string;
   llm_provider_id?: number;
   llm_provider?: LLMProviderInfo;
+  pull_request_id?: number;
   exclude_patterns: string;
   scan_config: string;
   total_files: number;
@@ -78,6 +79,7 @@ export interface AuditTask {
   created_at: string;
   project?: Project;
   creator?: Profile;
+  pull_request?: PullRequest;
 }
 
 export interface AuditIssue {
@@ -98,8 +100,83 @@ export interface AuditIssue {
   resolved_by?: string;
   resolved_at?: string;
   created_at: string;
+  is_in_diff?: boolean;  // 是否在 PR 差异中
+  diff_hunk?: string;  // PR 差异代码片段
   task?: AuditTask;
   resolver?: Profile;
+}
+
+// Pull Request 相关类型
+export interface PullRequest {
+  id: number;
+  project_id: number;
+  pr_number: number;
+  pr_url?: string;
+  title: string;
+  description?: string;
+  author?: string;
+  author_avatar?: string;
+  source_branch: string;
+  target_branch: string;
+  status: 'open' | 'closed' | 'merged';
+  changed_files_count: number;
+  additions: number;
+  deletions: number;
+  commits_count: number;
+  changed_files?: ChangedFile[];
+  pr_metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  merged_at?: string;
+  closed_at?: string;
+}
+
+export interface ChangedFile {
+  filename: string;
+  status: 'added' | 'removed' | 'modified' | 'renamed';
+  additions: number;
+  deletions: number;
+  changes: number;
+  patch?: string;
+  changed_lines?: number[];
+  blob_url?: string;
+  raw_url?: string;
+  previous_filename?: string;
+}
+
+// Webhook 相关类型
+export interface WebhookConfig {
+  id: number;
+  project_id: number;
+  platform: 'github' | 'gitlab' | 'codecommit';
+  webhook_url: string;
+  secret_token: string;
+  events: string[];
+  is_active: boolean;
+  auto_scan_enabled: boolean;
+  auto_comment_enabled: boolean;
+  created_at: string;
+  last_triggered_at?: string;
+}
+
+export interface WebhookLog {
+  id: number;
+  webhook_id: number;
+  event_type: string;
+  event_action?: string;
+  response_status?: number;
+  error_message?: string;
+  task_id?: string;
+  processed: boolean;
+  created_at: string;
+}
+
+export interface CreateWebhookConfigForm {
+  project_id: number;
+  platform: 'github' | 'gitlab' | 'codecommit';
+  events: string[];
+  auto_scan_enabled: boolean;
+  auto_comment_enabled: boolean;
 }
 
 export interface InstantAnalysis {

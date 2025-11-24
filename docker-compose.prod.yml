@@ -13,10 +13,9 @@ services:
       dockerfile: Dockerfile
       args:
         # 从环境变量或 .env 文件读取构建参数
-        # 注意: LLM API Keys 已移除，现在由后端统一管理
+        # 注意: LLM API Keys 和 GitHub Token 已移除，现在由后端统一管理
         # 注意: 本地数据库模式已移除，始终使用后端 API
         - VITE_API_BASE_URL=/api/v1
-        - VITE_GITHUB_TOKEN=${VITE_GITHUB_TOKEN}
         - VITE_APP_ID=${VITE_APP_ID:-xcodereviewer}
         - VITE_MAX_ANALYZE_FILES=${VITE_MAX_ANALYZE_FILES:-40}
         - VITE_LLM_CONCURRENCY=${VITE_LLM_CONCURRENCY:-2}

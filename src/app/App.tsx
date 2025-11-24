@@ -17,6 +17,7 @@ const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
 const LogsPage = lazy(() => import("@/pages/LogsPage"));
 const Prompts = lazy(() => import("@/pages/Prompts"));
 const SystemPromptTemplates = lazy(() => import("@/pages/SystemPromptTemplates"));
+const WebhookConfig = lazy(() => import("@/pages/WebhookConfig"));
 
 // Loading 组件
 function LoadingFallback() {
@@ -92,6 +93,7 @@ function AppContent() {
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
             <Route path="/projects/:id" element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
+            <Route path="/projects/:projectId/webhook" element={<ProtectedRoute><WebhookConfig /></ProtectedRoute>} />
             <Route path="/instant-analysis" element={<ProtectedRoute><InstantAnalysis /></ProtectedRoute>} />
             <Route path="/audit-tasks" element={<ProtectedRoute><AuditTasks /></ProtectedRoute>} />
             <Route path="/tasks/:id" element={<ProtectedRoute><TaskDetail /></ProtectedRoute>} />
